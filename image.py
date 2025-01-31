@@ -47,5 +47,23 @@ class Image:
     def compute_confusion_matrix(self, iou: float):
         self.match_boxes(iou)
 
-        for 
+        # TP = truth_box.matched_box is not None and truth_box.class_id == truth_box.matched_box.class_id | A truth box has matched a pred box that has same class id with it
+        # TN = İgnore
+        # FP = pred_box.matched_box == None or pred_box.matched_box.class_id != pred_box.class_id | A pred box hasn't matched any truth box or it has matched a truth box that hasn't same class id with it
+        # FN = truth_box.matched_box == None
+
+        for truth_box in self.truth_boxes: 
+            if truth_box.matched_box is None:# if a truth box hasn't matched a predicted box
+                self.confusion_matrix.FN += 1
+            else:# if a truth box has matched a predicted box
+                if truth_box.class_id == truth_box.matched_box.class_id: # if a truth box has matched a predicted box and it's class id has same value with it's predicted box's class id
+                    self.confusion_matrix.TP += 1
+                else:# if a truth box has matched a predicted box and it's class id has not same value with it's predicted box's class id
+                    self.confusion_matrix.FP += 1
+
+        for pred_box in self.pred_boxes:
+            if pred_box.matched_box is None:# if a pred box hasn't match a truth box
+                self.confusion_matrix.FP += 1
+
+
 
