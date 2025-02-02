@@ -3,6 +3,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import os
 
 class Image:
     def __init__(self):
@@ -53,14 +54,13 @@ class Image:
         self.match_boxes(iou)
 
         for truth_box in self.truth_boxes: 
-            if truth_box.matched_box is None or (truth_box.matched_box is not None and truth_box.matched_box.class_id != truth_box.class_id):# if a truth box hasn't matched a predicted box
+            if truth_box.matched_box is None: #fn
                 self.CM_data.append([0, 0, 0, 1])
-            else:# if a truth box has matched a predicted box
-                if truth_box.class_id == truth_box.matched_box.class_id: # if a truth box has matched a predicted box and it's class id has same value with it's predicted box's class id
-                    self.CM_data.append([truth_box.matched_box.conf, 1, 0, 0])
+            else:# tp
+                self.CM_data.append([truth_box.matched_box.conf, 1, 0, 0])
 
         for pred_box in self.pred_boxes:
-            if pred_box.matched_box is None:# if a pred box hasn't match a truth box
+            if pred_box.matched_box is None:
                 self.CM_data.append([pred_box.conf, 0, 1, 0])
 
     def get_cm(self):
@@ -68,56 +68,54 @@ class Image:
 
 
 class Frames:
-    def __init__(self, whole_truth_boxes, whole_pred_boxes):
+    def __init__(self, whole_truth_boxes, whole_pred_boxes, iou_treshold=0.5):
         self.whole_truth_boxes = whole_truth_boxes
         self.whole_pred_boxes = whole_pred_boxes
         self.images: list[Image] = []
         self.data = []
+        self.load_images(iou_treshold)
 
     def load_images(self, iou_treshold = 0.5):
         for i in range(len(self.whole_truth_boxes)):
+            print(f"{i+1}/{len(self.whole_truth_boxes)}")
             image = Image()
             image.load_boxes(self.whole_truth_boxes[i], self.whole_pred_boxes[i], iou_treshold=iou_treshold)
             self.images.append(image)
             self.data.extend(image.get_cm())#conf, TP, FP, FN
+        os.system('cls')
+
 
         self.data = np.array(self.data)
         self.data = self.data[np.argsort(self.data[:, 0])[::-1]]
 
         cum_data = self.data[:, 1:].cumsum(axis=0)#cum_TP, cum_FP, cum_FN
-        precision = self.calc_precision(cum_data[:, 0], cum_data[:, 1]).reshape(-1, 1)
-        recall = self.calc_recall(cum_data[:, 0], cum_data[:, 2]).reshape(-1, 1)
+        precision = (cum_data[:, 0] / (cum_data[:, 0] + cum_data[:, 1])).reshape(-1,1)
+        recall = (cum_data[:, 0] / sum([len(truth_boxes) for truth_boxes in self.whole_truth_boxes])).reshape(-1,1)
         f1_score = self.calc_f1_score(precision, recall).reshape(-1, 1)
 
-        print(f"data: {self.data.shape}\ncum_data : {cum_data.shape}\nprecision: {precision.shape}\nrecall: {recall.shape}\nf1_score: {f1_score.shape}")
-
         self.data = np.concatenate((self.data, cum_data, precision, recall, f1_score), axis=1)
-
-        print(f"data: {self.data.shape}")
-        self.data = pd.DataFrame(self.data, columns=['conf', 'TP', 'FP', 'FN', 'cum_TP', 'cum_FP', 'cum_FN', 'precision', 'recall', 'f1_score'])        
-
-    def calc_precision(self, TP, FP):
-        return TP / (TP + FP)
-
-    def calc_recall(self, TP, FN):
-        return TP / (TP + FN)
+        self.data = pd.DataFrame(self.data, columns=['conf', 'TP', 'FP', 'FN', 'cum_TP', 'cum_FP', 'cum_FN', 'precision', 'recall', 'f1_score'])
+        self.data.to_csv("data.csv", index=False)      
 
     def calc_f1_score(self, precision, recall):
         return 2 * (precision * recall) / (precision + recall)
     
     def plot_ap(self):
-        recall = self.data['recall']
-        precision = self.data['precision']
+        recall = self.data['recall'].to_numpy()
+        precision = self.data['precision'].to_numpy()
 
-        plt.plot(recall, precision, color='b', label=f'AP: {self.calc_mAP()}')
+        plt.plot(recall, precision, label=f"AP: {self.calc_mAP():.4f}")
         plt.xlabel('Recall')
         plt.ylabel('Precision')
         plt.title('Precision-Recall Curve')
         plt.legend()
+        plt.grid(True)
+        plt.savefig('precision_recall_curve.png')
         plt.show()
     
     def calc_mAP(self):
-        recall = self.data['recall']
-        precision = self.data['precision']
+        recall = self.data['recall'].to_numpy()
+        precision = self.data['precision'].to_numpy()
+        average_precision = np.trapezoid(y=precision, x=recall, dx=0.0001)
 
-        return np.trapz(y=precision, x=recall, dx=0.0001)
+        return average_precision
