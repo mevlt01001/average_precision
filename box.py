@@ -6,6 +6,7 @@ class Box:
         self.y1 = y1
         self.x2 = x2
         self.y2 = y2
+        self.boxes = [self.x1, self.y1, self.x2, self.y2]
         self.class_id = class_id
         self.matched_box: Optional[Box] = None
 
