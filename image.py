@@ -7,8 +7,8 @@ import os
 
 class Image:
     def __init__(self):
-        self.truth_boxes: Optional[list[TruthBox]] = []
-        self.pred_boxes: Optional[list[PredBox]] = []
+        self.truth_boxes: Optional[list[TruthBox]] = [] # x1, y1, x2, y2, class_id
+        self.pred_boxes: Optional[list[PredBox]] = [] # x1, y1, x2, y2, class_id, conf
         self.boxes_data: list[list] = [] # confidence_score, TP, FP, FN
         self.TP = 0
         self.FP = 0
@@ -53,7 +53,6 @@ class Image:
                 best_pred_box.matched_box = truth_box
                 best_pred_box.iou_val = best_iou
 
-
     def compute_confusion_matrix(self, iou: float):
         self.match_boxes(iou)
 
@@ -70,13 +69,9 @@ class Image:
                 self.boxes_data.append([pred_box.conf, 0, 1, 0])
                 self.FP += 1
 
-        self.precision = self.TP / ((self.TP + self.FP)+0.0001)
-        self.recall = self.TP / ((self.TP + self.FN)+0.0001)
-        self.f1_score = 2 * (self.precision * self.recall) / ((self.precision + self.recall)+0.0000001)
-        self.CM_data = [self.TP, self.FP, self.FN, self.precision, self.recall, self.f1_score]
-
-    def get_cm(self):
-        return self.boxes_data
+        self.precision = self.TP / ((self.TP + self.FP)+0.000000001)
+        self.recall = self.TP / ((self.TP + self.FN)+0.000000001)
+        self.CM_data = [self.precision, self.recall]
 
 
 class Frames:
@@ -90,57 +85,55 @@ class Frames:
 
     def load_images(self, iou_treshold = 0.5):
         for i in range(len(self.whole_truth_boxes)):
-            print(f"{i+1}/{len(self.whole_truth_boxes)}")
+            #print(f"{i+1}/{len(self.whole_truth_boxes)}")
             image = Image()
             image.load_boxes(self.whole_truth_boxes[i], self.whole_pred_boxes[i], iou_treshold=iou_treshold)
             self.images.append(image)
             self.data_per_image.append(image.CM_data)
-            self.data.extend(image.get_cm())#conf, TP, FP, FN
-        os.system(f"{'cls' if os.name == 'nt' else 'clear'}")
+            self.data.extend(image.boxes_data)#conf, TP, FP, FN
+        #os.system(f"{'cls' if os.name == 'nt' else 'clear'}")
 
         self.data = np.array(self.data)
         self.data_per_image = np.array(self.data_per_image)
+        avg_precision = self.data_per_image[:, 0].mean()
+        avg_recall = self.data_per_image[:, 1].mean()
         self.data = self.data[np.argsort(self.data[:, 0])[::-1]]
 
-        Average_TP = sum(self.data[:, 1]) / len(self.data)
-        Average_FP = sum(self.data[:, 2]) / len(self.data)
-        Average_FN = sum(self.data[:, 3]) / len(self.data)
-        Average_Precision = Average_TP / (Average_TP + Average_FP)
-        Average_Recall = Average_TP / (Average_TP + Average_FN)
-        Average_f1_score = 2 * (Average_Precision * Average_Recall) / (Average_Precision + Average_Recall)
-        print(f"Average_TP: {Average_TP}\nAverage_FP: {Average_FP}\nAverage_FN {Average_FN}\nAverage_Precision: {Average_Precision}\nAverage_Recall: {Average_Recall}\n Average_f1_score: {Average_f1_score}")
-
         cum_data = self.data[:, 1:].cumsum(axis=0)#cum_TP, cum_FP, cum_FN
-        precision = (cum_data[:, 0] / (cum_data[:, 0] + cum_data[:, 1])).reshape(-1,1)
+        precision = (cum_data[:, 0] / ((cum_data[:, 0] + cum_data[:, 1]))).reshape(-1,1) if (cum_data[:, 0] + cum_data[:, 1]).any() != 0 else np.nan
         recall = (cum_data[:, 0] / sum([len(truth_boxes) for truth_boxes in self.whole_truth_boxes])).reshape(-1,1)
-        f1_score = self.calc_f1_score(precision, recall).reshape(-1, 1)
+        
 
-        self.data = np.concatenate((self.data, cum_data, precision, recall, f1_score), axis=1)
-        self.data = pd.DataFrame(self.data, columns=['conf', 'TP', 'FP', 'FN', 'cum_TP', 'cum_FP', 'cum_FN', 'precision', 'recall', 'f1_score'])
-        self.data.to_csv(f"data_iou_{iou_treshold}.csv", index=False)      
+        self.data = np.concatenate((self.data, cum_data, precision, recall), axis=1)
+        self.data = pd.DataFrame(self.data, columns=['conf', 'TP', 'FP', 'FN', 'cum_TP', 'cum_FP', 'cum_FN', 'precision', 'recall'])
+        print(f"Average Precision: {avg_precision:.4f}")
+        print(f"Average Recall: {avg_recall:.4f}")
+        print(f"TP: {self.data['TP'].sum()}")
+        print(f"FP: {self.data['FP'].sum()}")
+        print(f"FN: {self.data['FN'].sum()}")
+        #self.data.to_csv(f"data_iou_{iou_treshold}.csv", index=False)  
 
-    def calc_f1_score(self, precision, recall):
-        return 2 * (precision * recall) / (precision + recall)
+
     
-    def plot_ap(self):
+    def plot_ap(self, title):
         recall = self.data['recall'].to_numpy()
         precision = self.data['precision'].to_numpy()
         
-        plt.figure(figsize=(8, 6))
-        plt.plot(recall, precision, color='blue')
-        plt.fill_between(recall, precision, alpha=0.3, color='blue', label=f'Area Under Curve: {self.calc_mAP():.4f}')
+        plt.figure(figsize=(8, 5))
+        plt.plot(recall, precision, color='darkblue')
+        plt.fill_between(recall, precision, alpha=0.5, color='yellow', label=f'Area Under Curve: {self.calc_mAP():.5f}')
         
         plt.xlabel('Recall')
         plt.ylabel('Precision')
-        plt.title('Precision-Recall Curve')
+        plt.title(title)
         plt.legend()
-        plt.grid(True, color='gray', linestyle='--', linewidth=0.5)
-        plt.savefig('precision_recall_curve.png')
+        plt.grid(True, color='red', linestyle='dotted', linewidth=0.5)
+        plt.tight_layout()
         plt.show()
     
     def calc_mAP(self):
         recall = self.data['recall'].to_numpy()
         precision = self.data['precision'].to_numpy()
-        average_precision = np.trapz(y=precision, x=recall, dx=0.0001)
+        average_precision = np.trapezoid(y=precision, x=recall, dx=0.0001)
 
         return average_precision
