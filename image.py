@@ -3,12 +3,11 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import os
 
 class Image:
     def __init__(self):
-        self.truth_boxes: Optional[list[TruthBox]] = [] # x1, y1, x2, y2, class_id
-        self.pred_boxes: Optional[list[PredBox]] = [] # x1, y1, x2, y2, class_id, conf
+        self.truth_boxes: Optional[list[TruthBox]] = [] # x1, y1, x2, y2
+        self.pred_boxes: Optional[list[PredBox]] = [] # x1, y1, x2, y2, conf
         self.boxes_data: list[list] = [] # confidence_score, TP, FP, FN
         self.TP = 0
         self.FP = 0
@@ -16,6 +15,9 @@ class Image:
 
 
     def load_truth_boxes(self, truth_boxes: list):
+        """
+        `truth_boxes` is a list of lists of the form [x1, y1, x2, y2]
+        """
         for truth_box in truth_boxes:
             new_truth_box = TruthBox(truth_box[0], truth_box[1], truth_box[2], truth_box[3], truth_box[4])
             self.truth_boxes.append(new_truth_box)
@@ -30,28 +32,25 @@ class Image:
         self.load_pred_boxes(pred_boxes)
         self.compute_confusion_matrix(iou=iou_treshold)
 
-    def match_boxes(self, iou: float):
+    def match_boxes(self, iou_threshold: float):
         for truth_box in self.truth_boxes:
-            if truth_box.matched_box is not None:
-                continue
+            if truth_box.matched_box is None: # if truth_box is not matched
 
-            best_pred_box = None
-            best_iou = -1
+                best_pred_box: PredBox = None
+                best_iou = -1
 
-            for pred_box in self.pred_boxes:
-                if pred_box.matched_box is not None:
-                    continue
+                for pred_box in self.pred_boxes:
+                    if pred_box.matched_box is None:
 
-                current_iou = truth_box.iou(pred_box)
-                if current_iou > best_iou and pred_box.class_id == truth_box.class_id:
-                    best_iou = current_iou
-                    best_pred_box = pred_box
-                    
+                        current_iou = truth_box.iou(pred_box)
+                        if current_iou > best_iou:
+                            best_iou = current_iou
+                            best_pred_box = pred_box
+                
+                if best_iou > iou_threshold:
+                    truth_box.match(best_pred_box, best_iou)
 
-            if best_pred_box is not None and best_iou >= iou:
-                truth_box.matched_box = best_pred_box
-                best_pred_box.matched_box = truth_box
-                best_pred_box.iou_val = best_iou
+            
 
     def compute_confusion_matrix(self, iou: float):
         self.match_boxes(iou)
