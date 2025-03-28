@@ -33,6 +33,13 @@ class Image:
         self.compute_confusion_matrix(iou=iou_treshold)
 
     def match_boxes(self, iou_threshold: float):
+        """
+        Her TruthBox için en iou değeri bulunur.\n
+        Eğer in iyi iou değeri iout_threshold dan büyük ise eşleşme yapılır değil ise yapılmaz.\n
+        Eşleşmenin yağılmış olması demek TP.\n
+        Eşleşmenin yapılmamış olması demek FN.\n
+        Sadece tek sınıftan baktığımız için FP değeri hesaplanmaz.
+        """
         for truth_box in self.truth_boxes:
             if truth_box.matched_box is None: # if truth_box is not matched
 
@@ -56,17 +63,10 @@ class Image:
         self.match_boxes(iou)
 
         for truth_box in self.truth_boxes: 
-            if truth_box.matched_box is None: #fn
-                self.boxes_data.append([0, 0, 0, 1])
-                self.FN += 1
-            else:# tp
-                self.boxes_data.append([truth_box.matched_box.conf, 1, 0, 0])
+            if truth_box.matched_box is not None:
                 self.TP += 1
-
-        for pred_box in self.pred_boxes:
-            if pred_box.matched_box is None:
-                self.boxes_data.append([pred_box.conf, 0, 1, 0])
-                self.FP += 1
+            else:
+                self.FN += 1
 
         self.precision = self.TP / ((self.TP + self.FP)+0.000000001)
         self.recall = self.TP / ((self.TP + self.FN)+0.000000001)
