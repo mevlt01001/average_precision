@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 class AP:
     truth_boxes : list[TruthBox]
     pred_boxes : list[PredBox]
-    __conf_TP_FP_data : np.array
-    __cumulative_TP_FP_data : np.array
+    total_TP: int
+    total_FP: int
     precision_recall: np.array
     AP: float
 
@@ -18,10 +18,12 @@ class AP:
         self.truth_boxes = AP.__load_truth_boxes(truth_boxes)
         self.pred_boxes = AP.__load_pred_boxes(pred_boxes)
         AP.__match_boxes(self.truth_boxes, self.pred_boxes, iou_treshold)
-        self.__conf_TP_FP_data = AP.__compute_TP_FP(self.pred_boxes)
-        sorted_conf_TP_FP_data = self.__conf_TP_FP_data[self.__conf_TP_FP_data[:,0].argsort()][::-1]
-        self.__cumulative_TP_FP_data = np.cumsum(sorted_conf_TP_FP_data[:,1:], axis=0)
-        self.precision_recall = AP.__calc_Precision_Recall(self.__cumulative_TP_FP_data, len(self.truth_boxes))
+        __conf_TP_FP_data = AP.__compute_TP_FP(self.pred_boxes)
+        sorted_conf_TP_FP_data = __conf_TP_FP_data[__conf_TP_FP_data[:,0].argsort()][::-1]
+        __cumulative_TP_FP_data = np.cumsum(sorted_conf_TP_FP_data[:,1:], axis=0)
+        self.total_TP = __cumulative_TP_FP_data[-1,0]
+        self.total_FP = __cumulative_TP_FP_data[-1,1]
+        self.precision_recall = AP.__calc_Precision_Recall(__cumulative_TP_FP_data, len(self.truth_boxes))
         self.mAP = AP.__calc_AP(self.precision_recall)
 
     def __load_truth_boxes(truth_boxes: list):
