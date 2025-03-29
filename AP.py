@@ -24,7 +24,7 @@ class AP:
         self.total_TP = __cumulative_TP_FP_data[-1,0]
         self.total_FP = __cumulative_TP_FP_data[-1,1]
         self.precision_recall = AP.__calc_Precision_Recall(__cumulative_TP_FP_data, len(self.truth_boxes))
-        self.mAP = AP.__calc_AP(self.precision_recall)
+        self.AP = AP.__calc_AP(self.precision_recall)
 
     def __load_truth_boxes(truth_boxes: list):
         """
