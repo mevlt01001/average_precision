@@ -54,8 +54,10 @@ class AP:
     def __match_boxes(truth_boxes: list[TruthBox], pred_boxes: list[PredBox], iou_threshold: float):
 
         pred_boxes.sort(key=lambda p: p.conf, reverse=True)
+        len_preds = len(pred_boxes)
 
-        for pred_box in pred_boxes:
+        for i,pred_box in enumerate(pred_boxes):
+            print(i,"/",len_preds)
             if pred_box.matched_box is None:
                 best_iou = 0
                 best_truth_box = None
@@ -87,10 +89,15 @@ class AP:
     def __calc_AP(precision_recall: np.array):
         return np.trapz(y=precision_recall[:,0], x=precision_recall[:,1], dx=0.0001)
     
-    def plot_precision_recall(self):
+    def plot_precision_recall(self, save=False):
         plt.plot(self.precision_recall[:,1], self.precision_recall[:,0])
+        plt.fill_between(self.precision_recall[:,1], self.precision_recall[:,0], alpha=0.2)
+        plt.suptitle("Precision Recall Curve")        
+        plt.legend(["AP", f"Area under the curve: {self.AP:.2f}"])
         plt.xlabel("Recall")
         plt.ylabel("Precision")
-        plt.xlim([0,1])
-        plt.ylim([0,1])
+        plt.xlim([-0.1,1.1])
+        plt.ylim([-0.1,1.1])
+        if save:
+            plt.savefig("AP.png")
         plt.show()
