@@ -1,0 +1,5 @@
+AP: 0.594186049409013
+Total TP: 34079.0
+Total FP: 2746.0
+Total Truth Boxes: 56503
+Total Pred Boxes: 36825
