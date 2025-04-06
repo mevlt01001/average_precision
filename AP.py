@@ -1,5 +1,5 @@
 from box import PredBox,TruthBox,Box
-import numpy as np
+import numpy as np, os
 import matplotlib.pyplot as plt
 
 class AP:
@@ -89,10 +89,10 @@ class AP:
     def __calc_AP(precision_recall: np.array):
         return np.trapz(y=precision_recall[:,0], x=precision_recall[:,1], dx=0.0001)
     
-    def plot_precision_recall(self, save=False):
+    def plot_precision_recall(self, save=False, path=None, name="PRECISION RECALL CURVE"):
         plt.plot(self.precision_recall[:,1], self.precision_recall[:,0])
         plt.fill_between(self.precision_recall[:,1], self.precision_recall[:,0], alpha=0.2)
-        plt.suptitle("Precision Recall Curve")        
+        plt.suptitle(name)        
         plt.legend(["AP", f"Area under the curve: {self.AP:.2f}"])
         plt.xlabel("Recall")
         plt.ylabel("Precision")
@@ -100,4 +100,6 @@ class AP:
         plt.ylim([-0.1,1.1])
         if save:
             plt.savefig("AP.png")
+            if path is not None:
+                os.system(f'mv AP.png {path}')
         plt.show()
