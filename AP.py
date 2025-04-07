@@ -18,12 +18,13 @@ class AP:
         self.truth_boxes = AP.__load_truth_boxes(truth_boxes)
         self.pred_boxes = AP.__load_pred_boxes(pred_boxes)
         AP.__match_boxes(self.truth_boxes, self.pred_boxes, iou_treshold)
-        __conf_TP_FP_data = AP.__compute_TP_FP(self.pred_boxes)
-        sorted_conf_TP_FP_data = __conf_TP_FP_data[__conf_TP_FP_data[:,0].argsort()][::-1]
-        __cumulative_TP_FP_data = np.cumsum(sorted_conf_TP_FP_data[:,1:], axis=0)
-        self.total_TP = __cumulative_TP_FP_data[-1,0]
-        self.total_FP = __cumulative_TP_FP_data[-1,1]
-        self.precision_recall = AP.__calc_Precision_Recall(__cumulative_TP_FP_data, len(self.truth_boxes))
+        __conf_TP_FP_FN_data = AP.__compute_TP_FP(self.truth_boxes, self.pred_boxes)
+        sorted_conf_TP_FP_FN_data = __conf_TP_FP_FN_data[__conf_TP_FP_FN_data[:,0].argsort()][::-1]
+        __cumulative_TP_FP_FN_data = np.cumsum(sorted_conf_TP_FP_FN_data[:,1:], axis=0)
+        self.total_TP = __cumulative_TP_FP_FN_data[-1,0]
+        self.total_FP = __cumulative_TP_FP_FN_data[-1,1]
+        self.total_FN = __cumulative_TP_FP_FN_data[-1,2]
+        self.precision_recall = AP.__calc_Precision_Recall(__cumulative_TP_FP_FN_data, len(self.truth_boxes))
         self.AP = AP.__calc_AP(self.precision_recall)
 
     def __load_truth_boxes(truth_boxes: list):
@@ -70,16 +71,20 @@ class AP:
                 if best_iou > iou_threshold:
                     pred_box.match(best_truth_box)
 
-    def __compute_TP_FP(pred_boxes: list[PredBox]):
+    def __compute_TP_FP(truth_boxes: list[TruthBox], pred_boxes: list[PredBox]):
 
-        TP_FP_data = []
+        TP_FP_FN_data = []
         for pred_box in pred_boxes: 
             if pred_box.matched_box is not None:
-                TP_FP_data.append([pred_box.conf,1,0]) # Eşleşme yapılırsa TP
+                TP_FP_FN_data.append([pred_box.conf,1,0,0]) # Eşleşme yapılırsa TP
             else:
-                TP_FP_data.append([pred_box.conf,0,1]) # Eşleşme yapılmazsa FP
+                TP_FP_FN_data.append([pred_box.conf,0,1,0]) # Eşleşme yapılmazsa FP
 
-        return np.array(TP_FP_data)
+        for truth_box in truth_boxes:
+            if truth_box.matched_box is None:
+                TP_FP_FN_data.append([0,0,0,1]) # Truth box'dan eşleşme yapılmazsa FN
+
+        return np.array(TP_FP_FN_data)
     
     def __calc_Precision_Recall(cumulative_TP_FP_data: np.array, total_truth_boxes_count: int):
         precision = (cumulative_TP_FP_data[:, 0] / ((cumulative_TP_FP_data[:, 0] + cumulative_TP_FP_data[:, 1]))).reshape(-1,1)
